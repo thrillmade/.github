@@ -32,7 +32,18 @@ project-specific setup beyond the four `init`/`add`/`apply` calls above.
 
 ## Conventions
 
-- Branch protection via [reporulez](https://github.com/thrillmade/reporulez)'s org-level ruleset: 4 required checks (`test`, `check-decisions`, `check-derived-docs`, `clud-bug-review`) on the default branch of every repo.
+- Branch protection: enforced via an **org-level ruleset** named
+  `org-default-protection` (not via per-repo branch-protection rules
+  — that API is legacy and will return 404 for our repos). See
+  `gh api orgs/thrillmade/rulesets`. Active settings:
+  - 4 required status checks: `clud-bug-review`, `check-derived-docs`, `check-decisions`, `check-links`
+  - `required_review_thread_resolution: true` — unresolved inline review threads block merge
+  - Squash-only + linear-history; non-fast-forward push blocked
+  - Bypass actor: Repository admin (always) — for self-mod ceremony PRs that legitimately can't satisfy `clud-bug-review`
 - Decision log in `docs/decisions.md` (and `docs/decisions-branches/<branch>.md` while a feature branch is live).
 - AI-agent guidance in `AGENTS.md` at the repo root. `logmind init` refreshes the marker-bracketed block on every install.
 - Cross-repo notifications: logmind tag pushes notify agent-skills (PR-shape), agent-skills baseline-skill changes notify clud-bug (PR-shape) — both v0.4.0+.
+
+## Vercel projects
+
+Hobby tier today. Marketing sites: `logmind.dev` (deployed from `logmind/site/`), `cludbug.dev` (deployed from `clud-bug/site/`). Upgrade trigger: any single repo hitting >20 deploys/day for 3 consecutive days, or onset of the App stream which will likely spike preview deploys. The root `vercel.json` in both projects uses `VERCEL_GIT_PREVIOUS_SHA`-aware `ignoreCommand` to skip deploys when no `site/` files changed.
