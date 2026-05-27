@@ -1,0 +1,10 @@
+# Org-default CODEOWNERS for thrillmade.
+#
+# GitHub uses this as the default for any thrillmade repo that does not
+# have its own .github/CODEOWNERS. Repos override by adding their own.
+#
+# When other contributors land, edit this file (or the per-repo
+# CODEOWNERS) to spread review responsibility — for now everything is
+# owned by the org admin.
+
+*       @thrillmot
