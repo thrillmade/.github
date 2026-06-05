@@ -4,6 +4,16 @@ name: Dependabot auto-merge
 # patch + minor bumps once required CI checks pass. Major bumps are tagged
 # for human review.
 #
+# Approval is signed by the `thrillmade-orchestrator[bot]` GitHub App via a
+# 1-hour installation token minted at job time — GitHub policy blocks the
+# default `GITHUB_TOKEN` from approving PRs ("GitHub Actions is not
+# permitted to approve pull requests"). The orchestrator App is the
+# org-wide approver-of-record (§8.6).
+#
+# Author-association gate: only PRs from dependabot[bot] OR thrillmade-org
+# members/collaborators/owners are auto-approved. Fork PRs from outside
+# contributors still need a human reviewer (End State #6).
+#
 # Consumers wire this up by adding a tiny caller workflow:
 #
 #   # .github/workflows/dependabot-auto-merge.yml
@@ -16,12 +26,10 @@ name: Dependabot auto-merge
 #     pull-requests: write
 #   jobs:
 #     auto-merge:
-#       if: github.actor == 'dependabot[bot]'
-#       uses: thrillmade/.github/.github/workflows/dependabot-auto-merge.yml@main
-#       secrets: inherit
-#
-# See thrillmade org §8.1 — near-term unblock until a centralized
-# orchestrator App is ready (Path B).
+#       uses: thrillmade/.github/.github/workflows/dependabot-auto-merge.yml@<PIN-SHA>
+#       secrets:
+#         orchestrator-app-id: ${{ secrets.THRILLMADE_ORCHESTRATOR_APP_ID }}
+#         orchestrator-private-key: ${{ secrets.THRILLMADE_ORCHESTRATOR_PRIVATE_KEY }}
 
 on:
   workflow_call:
@@ -31,6 +39,13 @@ on:
         type: string
         required: false
         default: 'squash'
+    secrets:
+      orchestrator-app-id:
+        description: 'thrillmade-orchestrator GitHub App ID (org secret THRILLMADE_ORCHESTRATOR_APP_ID)'
+        required: true
+      orchestrator-private-key:
+        description: 'thrillmade-orchestrator GitHub App private key (org secret THRILLMADE_ORCHESTRATOR_PRIVATE_KEY)'
+        required: true
 
 permissions:
   contents: write
@@ -39,39 +54,57 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    # Approve dependabot directly; for other authors, require org-member/collaborator/owner association.
+    # Fork PRs from outside contributors (NONE, FIRST_TIME_CONTRIBUTOR) do NOT auto-approve (End State #6).
+    if: >-
+      github.actor == 'dependabot[bot]' ||
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
     steps:
+      - name: Mint orchestrator App installation token
+        id: app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.orchestrator-app-id }}
+          private-key: ${{ secrets.orchestrator-private-key }}
+          owner: thrillmade
+          repositories: ${{ github.event.repository.name }}
+
       - name: Fetch Dependabot metadata
         id: meta
+        if: github.actor == 'dependabot[bot]'
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Comment on major bump and stop
-        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        if: >-
+          github.actor == 'dependabot[bot]' &&
+          steps.meta.outputs.update-type == 'version-update:semver-major'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           gh pr comment "$PR_URL" --body "major bump — needs human review (auto-merge skipped per org policy §8.1)"
 
-      - name: Approve patch/minor bump
+      - name: Approve patch/minor bump (orchestrator App)
         if: >-
-          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-          steps.meta.outputs.update-type == 'version-update:semver-minor'
+          github.actor == 'dependabot[bot]' &&
+          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+           steps.meta.outputs.update-type == 'version-update:semver-minor')
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           gh pr review --approve "$PR_URL" \
-            --body "Auto-approved: ${{ steps.meta.outputs.dependency-names }} ${{ steps.meta.outputs.update-type }}"
+            --body "Auto-approved by thrillmade-orchestrator[bot]: ${{ steps.meta.outputs.dependency-names }} ${{ steps.meta.outputs.update-type }}"
 
-      - name: Enable auto-merge for patch/minor bump
+      - name: Enable auto-merge for patch/minor bump (orchestrator App)
         if: >-
-          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-          steps.meta.outputs.update-type == 'version-update:semver-minor'
+          github.actor == 'dependabot[bot]' &&
+          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+           steps.meta.outputs.update-type == 'version-update:semver-minor')
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           MERGE_METHOD: ${{ inputs.merge-method }}
         run: |
