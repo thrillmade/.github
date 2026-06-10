@@ -1,8 +1,8 @@
 name: Dependabot auto-merge
 
-# Reusable workflow that auto-approves and squash-merges Dependabot PRs for
-# patch + minor bumps once required CI checks pass. Major bumps are tagged
-# for human review.
+# Reusable workflow that auto-approves and squash-merges all Dependabot PRs
+# once required CI checks pass. Per CEO direction 2026-06-10: CI green =
+# breaking change would have been caught.
 #
 # Approval is signed by the `thrillmade-orchestrator[bot]` GitHub App via a
 # 1-hour installation token minted at job time — GitHub policy blocks the
@@ -76,21 +76,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Comment on major bump and stop
-        if: >-
-          github.actor == 'dependabot[bot]' &&
-          steps.meta.outputs.update-type == 'version-update:semver-major'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: |
-          gh pr comment "$PR_URL" --body "major bump — needs human review (auto-merge skipped per org policy §8.1)"
-
-      - name: Approve patch/minor bump (orchestrator App)
-        if: >-
-          github.actor == 'dependabot[bot]' &&
-          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-           steps.meta.outputs.update-type == 'version-update:semver-minor')
+      - name: Approve dependabot bump (orchestrator App)
+        if: github.actor == 'dependabot[bot]'
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -98,11 +85,8 @@ jobs:
           gh pr review --approve "$PR_URL" \
             --body "Auto-approved by thrillmade-orchestrator[bot]: ${{ steps.meta.outputs.dependency-names }} ${{ steps.meta.outputs.update-type }}"
 
-      - name: Enable auto-merge for patch/minor bump (orchestrator App)
-        if: >-
-          github.actor == 'dependabot[bot]' &&
-          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-           steps.meta.outputs.update-type == 'version-update:semver-minor')
+      - name: Enable auto-merge for dependabot bump (orchestrator App)
+        if: github.actor == 'dependabot[bot]'
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
