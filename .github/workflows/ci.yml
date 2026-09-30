@@ -1,0 +1,27 @@
+name: ci
+
+# Org-wide required check (thrillmade "CI must pass" ruleset): a status
+# check literally named `ci` must succeed before a PR can merge into this
+# repo's default branch. This repo (the org's `.github` special repo)
+# only carries CODEOWNERS, the org profile README, review docs, and a
+# reusable `dependabot-auto-merge.yml` workflow that consumer repos call
+# into — there's no application code here for a `ci` job to test or check.
+# This is a placeholder that always succeeds.
+#
+# Replace this with a job that actually validates this repo's content
+# (e.g. linting the reusable workflow YAML) if that becomes worth gating.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder
+        run: |
+          echo "Placeholder: this repo has no checks yet. Add real checks and make this job wait for them."
